@@ -1,4 +1,4 @@
-const CACHE = 'meal-app-2f51389f327b';
+const CACHE = 'meal-app-365c6452ef42';
 const SHELL = ['./','./index.html','./manifest.webmanifest','./icons/app-192.png','./icons/app-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(()=>self.skipWaiting()));

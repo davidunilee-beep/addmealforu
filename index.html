@@ -295,15 +295,17 @@ window.mealFavorites = (() => {
 </script>
 
 
+
 <!-- pwa-start -->
 <style>
-#app-install{white-space:nowrap;background:#eee6f5;color:#605278;border-color:#d9cde9}#app-install:disabled{background:#e4efe8;color:#4a6d5e;cursor:default}.install-dialog ol{padding-left:22px;font-size:14px}.install-dialog li{margin:10px 0}.install-dialog h2{padding-right:24px}.install-dialog .btn{margin-top:8px}.install-dialog .install-caption{font-size:13px;color:var(--muted)}@media print{#app-install,.install-dialog{display:none!important}}
+#app-install{white-space:nowrap;background:#eee6f5;color:#605278;border-color:#d9cde9}#app-install:disabled{background:#e4efe8;color:#4a6d5e;cursor:default}.install-dialog ol{padding-left:22px;font-size:14px}.install-dialog li{margin:10px 0}.install-dialog h2{padding-right:24px}.install-dialog .btn{margin-top:8px}.install-dialog .install-caption{font-size:13px;color:var(--muted)}.install-actions{display:grid;gap:8px;margin:16px 0}.install-actions .btn{text-align:center;text-decoration:none;padding:12px}.install-actions [hidden]{display:none!important}@media print{#app-install,.install-dialog{display:none!important}}
 </style>
 <dialog class="auth-modal install-dialog" id="install-dialog" aria-labelledby="install-title">
  <button type="button" class="auth-close" id="install-close" aria-label="앱 설치 안내 닫기">×</button>
  <h2 id="install-title">스마트폰에 앱 추가</h2>
  <p class="install-caption">홈 화면에 아이콘을 추가하면 다음부터 앱처럼 바로 열 수 있어요. 별도의 APK 파일은 필요하지 않아요.</p>
  <div id="install-instructions"></div>
+ <div class="install-actions"><button type="button" class="btn primary" id="install-now" hidden>지금 앱 설치</button><a class="btn primary" id="install-chrome" hidden>Chrome에서 설치하기</a></div>
  <p class="mini">저장된 식단·이미지·재고는 오프라인에서도 볼 수 있어요. 로그인과 즐겨찾기 동기화에는 인터넷 연결이 필요합니다. 재고는 브라우저·설치한 앱에 따라 별도로 보관될 수 있어요.</p>
  <p id="install-status" class="auth-message" role="status" aria-live="polite"></p>
  <button type="button" class="btn" id="install-copy">사이트 주소 복사</button>
@@ -311,6 +313,14 @@ window.mealFavorites = (() => {
 <script id="pwa-code">
 (() => {
   const get=id=>document.getElementById(id),button=get('app-install'),dialog=get('install-dialog');
+  const ua=navigator.userAgent||'',android=/Android/i.test(ua);
+  const ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const embedded=/KAKAOTALK|Instagram|FBAN|FBAV|NAVER\(|DaumApps|;\s*wv\b/i.test(ua);
+  const chrome=/Chrome\//i.test(ua)&&!embedded&&!/SamsungBrowser|EdgA|OPR\//i.test(ua);
+  // Only the public site address is transferred; login tokens are never copied between browsers.
+  const handoff=new URL('/',location.origin);handoff.searchParams.set('install','1');
+  const chromeIntent=`intent://${handoff.host}${handoff.pathname}${handoff.search}#Intent;scheme=${handoff.protocol.slice(0,-1)};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(handoff.href)};end`;
+  get('install-chrome').href=chromeIntent;
   let promptEvent=null,installed=false,busy=false;
   const display=window.matchMedia('(display-mode: standalone)');
   function updateInstalled(){
@@ -318,32 +328,45 @@ window.mealFavorites = (() => {
     button.textContent=installed?'설치됨':'앱 다운로드';button.disabled=installed;
   }
   updateInstalled();display.addEventListener?.('change',updateInstalled);
-  window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();promptEvent=event;});
+  window.addEventListener('beforeinstallprompt',event=>{
+    event.preventDefault();promptEvent=event;
+    if(dialog.open){get('install-now').hidden=false;get('install-chrome').hidden=true;get('install-status').textContent='설치할 준비가 됐어요. ‘지금 앱 설치’를 눌러 주세요.';}
+  });
   window.addEventListener('appinstalled',()=>{promptEvent=null;installed=true;updateInstalled();if(dialog.open)dialog.close();toast('홈 화면에 앱을 추가했어요.');});
   function showGuide(){
-    const ua=navigator.userAgent||'',ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-    const embedded=/KAKAOTALK|Instagram|FBAN|FBAV|; wv\)/i.test(ua);
     const steps=ios
       ? '<p>아이폰·아이패드</p><ol><li>이 사이트를 <b>Safari</b>에서 열어 주세요.</li><li>브라우저의 <b>공유</b> 버튼을 누르세요.</li><li><b>홈 화면에 추가</b>를 선택하고 <b>추가</b>를 누르세요.</li></ol>'
       : /Android/i.test(ua)
-        ? '<p>안드로이드 스마트폰</p><ol><li>이 사이트를 <b>Chrome 또는 Samsung Internet</b>에서 열어 주세요.</li><li>브라우저 메뉴 <b>⋮ 또는 ☰</b>를 누르세요.</li><li><b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 선택하세요.</li></ol>'
+        ? embedded
+          ? '<p>아래 버튼을 누르면 <b>Chrome으로 바로 이동</b>합니다. 메뉴를 찾을 필요가 없어요.</p><p class="mini">Chrome으로 이동하면 다시 로그인해야 할 수 있어요. 설치는 로그인하지 않아도 가능합니다.</p>'
+          : '<p>설치 준비가 완료되면 아래 <b>지금 앱 설치</b> 버튼이 나타납니다. 설치 창에서 한 번 더 확인하면 홈 화면에 추가됩니다.</p><details><summary class="quiet">설치 버튼이 나타나지 않나요?</summary><p class="mini">이미 설치했거나 브라우저가 설치를 지원하지 않을 수 있어요. 홈 화면의 아이콘을 확인해 주세요. Chrome 메뉴 ⋮ → 앱 설치 또는 홈 화면에 추가로도 설치할 수 있습니다.</p></details>'
         : '<p>스마트폰에서는 이 사이트를 열고 브라우저 메뉴의 <b>앱 설치 / 홈 화면에 추가</b>를 선택하세요.</p><p>PC에서는 Chrome·Edge 주소창의 설치 아이콘 또는 브라우저 메뉴에서 앱을 설치할 수 있어요.</p>';
-    get('install-instructions').innerHTML=(embedded?'<p>현재 앱 안의 브라우저에서는 설치가 제한될 수 있어요. 메뉴에서 <b>외부 브라우저로 열기</b>를 선택해 주세요.</p>':'')+steps;
-    get('install-status').textContent='';dialog.showModal();
+    get('install-instructions').innerHTML=steps;
+    get('install-now').hidden=!promptEvent;
+    get('install-chrome').hidden=!android||!!promptEvent||chrome;
+    get('install-status').textContent=android&&!embedded&&!promptEvent?'브라우저에서 설치 가능 여부를 확인하고 있어요. 잠시 기다려 주세요.':'';
+    if(!dialog.open)dialog.showModal();
   }
   button.onclick=async()=>{
     if(installed||busy)return;
-    if(!promptEvent)return showGuide();
+    if(!promptEvent){
+      showGuide();
+      if(android&&embedded)location.assign(chromeIntent);
+      return;
+    }
     const event=promptEvent;promptEvent=null;busy=true;button.disabled=true;
-    try{await event.prompt();const choice=await event.userChoice;if(choice.outcome!=='accepted')toast('다음에 앱을 설치할 수 있어요.');}
+    get('install-now').disabled=true;
+    try{await event.prompt();const choice=await event.userChoice;if(choice.outcome!=='accepted'){get('install-status').textContent='설치를 취소했어요. 나중에 다시 설치할 수 있습니다.';toast('다음에 앱을 설치할 수 있어요.');}else if(dialog.open){dialog.close();}}
     catch{showGuide();}
-    finally{busy=false;updateInstalled();}
+    finally{busy=false;get('install-now').disabled=false;get('install-now').hidden=!promptEvent;updateInstalled();}
   };
+  get('install-now').onclick=()=>button.onclick();
   get('install-close').onclick=()=>dialog.close();
   get('install-copy').onclick=async()=>{try{await navigator.clipboard.writeText(location.origin+'/');get('install-status').textContent='주소를 복사했어요. 스마트폰 브라우저에서 열어 주세요.';}catch{get('install-status').textContent='주소창의 사이트 주소를 복사해 주세요.';}};
   if('serviceWorker' in navigator&&window.isSecureContext){
     navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{ /* The online app and install guide remain available. */ });
   }
+  if(!installed&&new URLSearchParams(location.search).get('install')==='1')showGuide();
 })();
 </script>
 
